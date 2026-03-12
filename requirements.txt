@@ -1,0 +1,5 @@
+streamlit>=1.32
+gspread>=6.2
+google-auth>=2.28
+pandas>=2.2
+python-dateutil>=2.9
