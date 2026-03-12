@@ -1,0 +1,17 @@
+# Imetris Timesheets (Streamlit + Google Sheets + GitHub Actions)
+
+Free, lightweight timesheet management with:
+- Streamlit (app)
+- Google Sheets (data)
+- GitHub Actions (email reminders from ImetrisTimesheets@gmail.com)
+- Friday week-ending, weekend entries allowed
+- Admin/User roles
+
+## Setup
+1) Create Google Sheet and share with your Service Account (Editor).
+2) Deploy to Streamlit → Add Secrets (service account JSON + spreadsheet_id).
+3) Login as admin, submit a test timesheet, approve/reject.
+4) (Optional) Add GitHub Actions secrets and enable reminders.
+
+## Users sheet schema
+``
