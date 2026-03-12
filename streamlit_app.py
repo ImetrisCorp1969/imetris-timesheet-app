@@ -32,10 +32,30 @@ def get_ws():
     ws_settings = sh.worksheet("Settings")
     return ws_emp, ws_ts, ws_rem, ws_settings
 
+# -------------------------------
+# Normalization helper for robust login
+# -------------------------------
+def normalize_employees_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Create normalized columns that are resilient to Sheets formatting."""
+    df = df.copy()
+
+    # Ensure expected columns exist (defensive)
+    for col in ["email", "pin", "active", "name", "role", "timezone", "manager_email", "client"]:
+        if col not in df.columns:
+            df[col] = None
+
+    # Normalize fields used for matching
+    df["email_norm"]  = df["email"].astype(str).str.strip().str.lower()
+    df["pin_norm"]    = df["pin"].astype(str).str.strip()
+    df["active_norm"] = df["active"].astype(str).str.strip().str.lower().isin(["true", "1", "yes"])
+    return df
+
 def load_employees_df():
     ws_emp, _, _, _ = get_ws()
-    rows = ws_emp.get_all_records()
-    return pd.DataFrame(rows)
+    rows = ws_emp.get_all_records()  # list[dict] from gspread
+    df = pd.DataFrame(rows)
+    df = normalize_employees_df(df)
+    return df
 
 def load_settings():
     _, _, _, ws_settings = get_ws()
@@ -94,17 +114,25 @@ def login_panel(emp_df: pd.DataFrame):
     st.subheader("Sign in")
     email = st.text_input("Work Email")
     pin = st.text_input("PIN (6 digits)", type="password")
+
     if st.button("Continue", type="primary"):
-        rec = emp_df[(emp_df["email"].str.strip().str.lower()==email.strip().lower()) &
-                     (emp_df["pin"].astype(str)==pin.strip()) &
-                     (emp_df.get("active", True)==True)]
+        email_in = (email or "").strip().lower()
+        pin_in   = (pin or "").strip()
+
+        # Compare against normalized columns (robust to whitespace/formatting)
+        rec = emp_df[
+            (emp_df["email_norm"] == email_in) &
+            (emp_df["pin_norm"]   == pin_in) &
+            (emp_df["active_norm"])
+        ]
+
         if not rec.empty:
             r = rec.iloc[0].to_dict()
             st.session_state.user = {
-                "email": r["email"],
+                "email": r.get("email"),
                 "name": r.get("name",""),
                 "role": r.get("role","employee"),
-                "timezone": r.get("timezone","America/New_York")
+                "timezone": r.get("timezone","America/Detroit")
             }
             st.rerun()
         else:
@@ -211,6 +239,12 @@ def main():
     st.caption("Week ending Friday. Weekend hours allowed per company policy.")
 
     emp_df = load_employees_df()
+
+    # (Optional) Enable this while testing to see data as app reads it
+    # st.expander("Debug: Employees loaded").write(
+    #     emp_df[["email","email_norm","pin","pin_norm","active","active_norm"]].head(20)
+    # )
+
     user = st.session_state.get("user")
 
     if not user:
