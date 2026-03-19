@@ -151,7 +151,7 @@ def submission_form(user, emp_df):
 
     st.info(f"**Week ending:** {fri.isoformat()}")
 
-    rows = default_day_rows()
+    rows_config = default_day_rows()
     cols = st.columns(2)
     project = cols[0].text_input("Project / Client")
     notes   = cols[1].text_area("Notes", height=100, placeholder="Optional context")
@@ -159,21 +159,37 @@ def submission_form(user, emp_df):
     total_hours = 0.0
     day_labels = ["mon","tue","wed","thu","fri","sat","sun"]
     display_names = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    
+    final_data = {}
 
     for i, d in enumerate(day_labels):
-        hours_default, status_default = rows[d]
+        hours_default, status_default = rows_config[d]
         c1, c2, c3 = st.columns([2,2,4])
-        with c1:
-            h = st.number_input(f"{display_names[i]} hours", min_value=0.0, max_value=24.0, step=0.5, value=hours_default, key=f"h_{d}")
+        
         with c2:
+            # We render Status first to determine if Hours should be forced to 0
             s = st.selectbox(f"{display_names[i]} status", STATUS_CHOICES, index=STATUS_CHOICES.index(status_default), key=f"s_{d}")
-        if s in ["Leave","Absent","Holiday","Off"] and h != 0:
-            h = 0.0
-            st.session_state[f"h_{d}"] = 0.0
+        
+        with c1:
+            # If status is not "Worked", force the default to 0.0 and disable input
+            is_non_work = s in ["Leave","Absent","Holiday","Off"]
+            val_to_use = 0.0 if is_non_work else hours_default
+            
+            h = st.number_input(
+                f"{display_names[i]} hours", 
+                min_value=0.0, 
+                max_value=24.0, 
+                step=0.5, 
+                value=val_to_use, 
+                key=f"h_{d}",
+                disabled=is_non_work
+            )
+            
         total_hours += h
-        rows[d] = (h, s)
+        final_data[d] = (h, s)
 
-    for d,(h,s) in rows.items():
+    # Warnings
+    for d, (h, s) in final_data.items():
         if s == "Worked" and h > 8:
             st.warning(f"{d.title()}: worked hours exceed 8.")
     if total_hours > 40:
@@ -184,13 +200,13 @@ def submission_form(user, emp_df):
         now_iso = datetime.utcnow().isoformat()
         append_timesheet_row([
             tsid, user["email"], fri.isoformat(),
-            rows["mon"][0], rows["mon"][1],
-            rows["tue"][0], rows["tue"][1],
-            rows["wed"][0], rows["wed"][1],
-            rows["thu"][0], rows["thu"][1],
-            rows["fri"][0], rows["fri"][1],
-            rows["sat"][0], rows["sat"][1],
-            rows["sun"][0], rows["sun"][1],
+            final_data["mon"][0], final_data["mon"][1],
+            final_data["tue"][0], final_data["tue"][1],
+            final_data["wed"][0], final_data["wed"][1],
+            final_data["thu"][0], final_data["thu"][1],
+            final_data["fri"][0], final_data["fri"][1],
+            final_data["sat"][0], final_data["sat"][1],
+            final_data["sun"][0], final_data["sun"][1],
             project, notes, total_hours, now_iso,
             "Submitted",""
         ])
@@ -240,18 +256,13 @@ def main():
 
     emp_df = load_employees_df()
 
-    # (Optional) Enable this while testing to see data as app reads it
-    # st.expander("Debug: Employees loaded").write(
-    #     emp_df[["email","email_norm","pin","pin_norm","active","active_norm"]].head(20)
-    # )
-
     user = st.session_state.get("user")
 
     if not user:
         login_panel(emp_df)
         return
 
-    st.sidebar.write(f"Signed in: **{user['name'] or user['email']}**  \nRole: **{user['role']}**")
+    st.sidebar.write(f"Signed in: **{user['name'] or user['email']}** \nRole: **{user['role']}**")
     choice = st.sidebar.radio("Navigate", ["Submit Timesheet","My Submissions"] + (["Admin"] if user["role"] in ["admin","owner"] else []))
 
     if choice == "Submit Timesheet":
@@ -263,4 +274,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
 
+
+   
+            
+
+   
